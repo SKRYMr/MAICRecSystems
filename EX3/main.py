@@ -56,7 +56,7 @@ def check_user_id(user_id: str, df_users: pd.DataFrame) -> int:
     sys.exit(0)
 
 
-def get_movie_rated_by_user(user_id: str, df_movies: pd.DataFrame, df_ratings: pd.DataFrame):
+def get_movie_rated_by_user(user_id: int, df_movies: pd.DataFrame, df_ratings: pd.DataFrame):
     user_ratings = df_ratings[df_ratings["user_id"] == user_id].copy()
     user_movies = df_movies[df_movies["movie_id"].isin(user_ratings["movie_id"])].copy()
     
@@ -65,7 +65,7 @@ def get_movie_rated_by_user(user_id: str, df_movies: pd.DataFrame, df_ratings: p
     return user_movies
 
 
-def get_user_item_table(user_id: str, df_ratings: pd.DataFrame):
+def get_user_item_table(user_id: int, df_ratings: pd.DataFrame):
     user_item_table = df_ratings.pivot_table(index='user_id', columns='movie_id', values='rating', fill_value=0)
     user_vector = user_item_table.iloc[user_id-1]
     user_item_table.drop(index=user_id, inplace=True)
