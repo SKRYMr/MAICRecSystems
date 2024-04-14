@@ -17,8 +17,46 @@ def show_user_movies(user_movies, nmovies=15):
             break
     return
 
+def pearson_correlation(col1, col2):
+    if len(col1) == 0 or len(col1) < 5:
+        return 0
+    col1_mean = col1.mean()
+    col2_mean = col2.mean()
+    a = ((col1-col1_mean)*(col2-col2_mean)).sum()
+    b = ((col1-col1_mean)**2).sum()
+    c = ((col2-col2_mean)**2).sum()
+    #print(a, b, c)
+    if b == 0 or c == 0:
+        b = b + 0.02
+        c = c + 0.02
+    return abs(a/((b*c)**0.5))
+
+
 def find_k_nearest(user_id, k):
-    return
+    similarities = {}
+    user_ids = ratings['user_id'].unique()
+    for id in user_ids:
+        if int(id) == int(user_id):
+            continue
+        if int(user_id) == 2000:
+            break
+        user_ratings1 = ratings[ratings.user_id == int(id)]
+        user_ratings_ab = pd.merge(ratings[ratings.user_id == int(user_id)], user_ratings1, on="movie_id")
+        similarities[id] = pearson_correlation(user_ratings_ab['rating_x'], user_ratings_ab['rating_y'])
+    similarities_sorted = sorted(similarities.items(), key=lambda item: item[1], reverse=True)
+    users = [user[0] for user in similarities_sorted[:k]]
+    return users
+
+def get_top_movies(user_id, neighbours):
+    user_ratings = ratings[ratings.user_id == int(user_id)]
+    neighbours_ratings = ratings[ratings.user_id.isin(neighbours)]
+    neighbours_ratings = neighbours_ratings[~neighbours_ratings.movie_id.isin(user_ratings.movie_id)]
+    neighbours_ratings = neighbours_ratings.groupby('movie_id').rating.mean().reset_index()
+    neighbours_ratings.sort_values('rating', ascending=False, inplace=True)
+    neighbours_ratings = neighbours_ratings.head(10)
+    neighbours_movies = pd.merge(neighbours_ratings, movies, on="movie_id")
+    print(f"Top 10 recommended movies for user {user_id}")
+    return show_user_movies(neighbours_movies,10)
 
 
 if __name__ == '__main__':
@@ -39,12 +77,15 @@ if __name__ == '__main__':
 
 
     user_ratings = ratings[ratings.user_id == int(user_id)]
+    user_ratings1 = ratings[ratings.user_id == 4]
 
     user_movies = pd.merge(user_ratings, movies, on="movie_id")
 
     show_user_movies(user_movies, nmovies=15)
 
+    neighbours = find_k_nearest(user_id, 5)
     
-    print(user_movies.head())
+    print(neighbours)
 
- 
+    get_top_movies(user_id, neighbours)
+
