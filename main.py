@@ -1,5 +1,12 @@
 import pandas as pd
 import os
+import sys
+
+RATINGS_DAT_FILE = "./data/ratings.dat"
+MOVIES_DAT_FILE = "./data/movies.dat"
+
+RATINGS_CSV_FILE = "./data/ratings.csv"
+MOVIES_CSV_FILE = "./data/movies.csv"
 
 def show_user_movies(user_movies, nmovies=15):
 
@@ -17,6 +24,24 @@ def show_user_movies(user_movies, nmovies=15):
             break
     return
 
+def check_user_id(user_id: str, df_users: pd.DataFrame) -> int:
+    try:
+        user_id = int(user_id)
+
+        user_df = df_users[df_users["user_id"] == user_id]
+        
+        if user_df.empty:
+            print("User not found")
+            sys.exit(0)
+
+        return user_id
+    except ValueError:
+        print("user id must be a number")
+    except Exception as e:
+        print(e)
+
+    sys.exit(0)
+
 def pearson_correlation(col1, col2):
     if len(col1) == 0 or len(col1) < 5:
         return 0
@@ -25,7 +50,6 @@ def pearson_correlation(col1, col2):
     a = ((col1-col1_mean)*(col2-col2_mean)).sum()
     b = ((col1-col1_mean)**2).sum()
     c = ((col2-col2_mean)**2).sum()
-    #print(a, b, c)
     if b == 0 or c == 0:
         b = b + 0.02
         c = c + 0.02
@@ -61,24 +85,19 @@ def get_top_movies(user_id, neighbours):
 
 if __name__ == '__main__':
     user_id = input('User id: ')
-    print( user_id)
+    print(user_id)
 
-    if os.path.exists('ratings.csv') and os.path.exists('movies.csv'):
-        ratings = pd.read_csv('ratings.csv')
-        movies = pd.read_csv('movies.csv')
+    if os.path.exists(RATINGS_CSV_FILE) and os.path.exists(MOVIES_CSV_FILE):
+        ratings = pd.read_csv(RATINGS_CSV_FILE)
+        movies = pd.read_csv(MOVIES_CSV_FILE)
     else:
-        ratings = pd.read_table("./ml-1m/ratings.dat", engine="python",sep="::", usecols=[0,1,2],names=["user_id", "movie_id", "rating"])
+        ratings = pd.read_table(RATINGS_DAT_FILE, engine="python",sep="::", usecols=[0,1,2],names=["user_id", "movie_id", "rating"])
+        movies = pd.read_table(MOVIES_DAT_FILE, engine="python",sep="::", names=["movie_id", "title", "genres"], encoding = 'latin')
 
-        movies = pd.read_table("./ml-1m/movies.dat", engine="python",sep="::", names=["movie_id", "title", "genres"], encoding = 'latin')
-
-        ratings.to_csv('ratings.csv', index=False)
-        movies.to_csv('movies.csv', index=False)
-
-
+        ratings.to_csv(RATINGS_CSV_FILE, index=False)
+        movies.to_csv(MOVIES_CSV_FILE, index=False)
 
     user_ratings = ratings[ratings.user_id == int(user_id)]
-    user_ratings1 = ratings[ratings.user_id == 4]
-
     user_movies = pd.merge(user_ratings, movies, on="movie_id")
 
     show_user_movies(user_movies, nmovies=15)
