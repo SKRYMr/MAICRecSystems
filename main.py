@@ -3,8 +3,8 @@ import numpy as np
 
 class DataHandler():
     def __init__(self):
-        self.rating_data = pd.read_csv('../datasets/ml-1m/ratings.dat', delimiter="::", names=['userId', 'movieId', 'rating','timestamp'], engine='python')
-        self.movie_data = pd.read_csv('../datasets/ml-1m/movies.dat', sep='::', header=None, names=['movieId', 'title','genres'], engine='python', encoding='latin1')
+        self.rating_data = pd.read_csv('ml-1m/ratings.dat', delimiter="::", names=['userId', 'movieId', 'rating','timestamp'], engine='python')
+        self.movie_data = pd.read_csv('ml-1m/movies.dat', sep='::', header=None, names=['movieId', 'title','genres'], engine='python', encoding='latin1')
     
     def getUserRatings(self, user_id):
         user_ratings = self.rating_data[self.rating_data['userId'] == user_id]
