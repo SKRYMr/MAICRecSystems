@@ -59,7 +59,7 @@ def check_user_id(user_id: int, users: set) -> bool:
         return False
     return True
 
-def pearson_correlation(col1, col2):
+def pearson_correlation(col1, col2) -> float:
     if len(col1) == 0 or len(col1) < 5:
         return 0
     col1_mean = col1.mean()
@@ -87,14 +87,14 @@ def get_top_movies(user_id: int, neighbours: list, ratings: pd.DataFrame, movies
     user_ratings = database.get_user_ratings(user_id)
     neighbours_ratings = ratings[ratings.user_id.isin(neighbours)]
     neighbours_ratings = neighbours_ratings[~neighbours_ratings.movie_id.isin(user_ratings.movie_id)]
-    neighbours_ratings = neighbours_ratings[neighbours_ratings["movie_id"].map(neighbours_ratings["movie_id"].value_counts()) >= 10]
+    neighbours_ratings = neighbours_ratings[neighbours_ratings["movie_id"].map(neighbours_ratings["movie_id"].value_counts()) >= 5]
     neighbours_ratings = neighbours_ratings.groupby("movie_id").rating.mean().reset_index()
     neighbours_ratings.sort_values("rating", ascending=False, inplace=True)
     neighbours_ratings = neighbours_ratings.head(10)
     neighbours_movies = pd.merge(neighbours_ratings, movies, on="movie_id")
     return show_movies(neighbours_movies, 10, recommendation=True)
 
-def get_user_item_table(user_id: int, df_ratings: pd.DataFrame):
+def get_user_item_table(user_id: int, df_ratings: pd.DataFrame) -> pd.DataFrame:
     user_item_table = df_ratings.pivot_table(index="user_id", columns="movie_id", values="rating", fill_value=0)
     user_vector = user_item_table.iloc[user_id-1]
     user_item_table.drop(index=user_id, inplace=True)
@@ -104,7 +104,7 @@ def get_user_item_table(user_id: int, df_ratings: pd.DataFrame):
     
     return user_item_table
 
-def get_best_users(user_item_table: pd.DataFrame, min_corr: float=0.25):
+def get_best_users(user_item_table: pd.DataFrame, min_corr: float=0.25) -> pd.DataFrame:
     best_users = user_item_table[user_item_table["score"] > min_corr]
 
     if best_users.empty:
@@ -115,7 +115,7 @@ def get_best_users(user_item_table: pd.DataFrame, min_corr: float=0.25):
 
     return best_users
 
-def rate_movies_by_best_users(best_users: pd.DataFrame, user_movies: pd.DataFrame):
+def rate_movies_by_best_users(best_users: pd.DataFrame, user_movies: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(best_users.apply(np.average, axis=0), columns=["avg_rating"]).sort_values("avg_rating", ascending=False).drop(user_movies["movie_id"])
 
 if __name__ == "__main__":
@@ -128,21 +128,8 @@ if __name__ == "__main__":
         if check_user_id(user_id, database.users):
             break
 
-    nearest_neighbours = 100
+    nearest_neighbours = 50
 
     show_movies(database.get_user_movies(user_id).sort_values("rating", ascending=False, ignore_index=True), n_movies=15)
-    print(f"Self-Coded Pearson Correlation, {nearest_neighbours} Nearest Neighbours:")
     neighbours = find_k_nearest(user_id, database.users, database.ratings, nearest_neighbours)
     get_top_movies(user_id, neighbours, database.ratings, database.movies)
-
-    corr_thresh = 0.25
-    print(f"Pandas Pearson Correlation, {corr_thresh} Correlation Threshold:\n")
-
-    user_item_table = get_user_item_table(user_id, database.ratings)
-    k_best_users = get_best_users(user_item_table, min_corr=corr_thresh)
-    movie_scores = rate_movies_by_best_users(k_best_users, database.get_user_movies(user_id))
-    print(f"10 Best Movies For User =========================")
-    for i, m_id in enumerate(movie_scores.head(10).index.values):
-        m = database.movies[database.movies["movie_id"] == m_id]
-        print(f'{i + 1}) {m["title"].values[0]} - Rating: {movie_scores.loc[m_id]["avg_rating"]:.3f}')
-    print(f"================================================\n")
