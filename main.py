@@ -76,8 +76,6 @@ def find_k_nearest(user_id: int, users: set, ratings: pd.DataFrame, k: int) -> l
     similarities = {}
     user_ratings = ratings[ratings.user_id == int(user_id)]
     for id in users - {user_id}:
-        if int(user_id) == 2000:
-            break
         other_user_ratings = ratings[ratings.user_id == int(id)]
         user_ratings_ab = pd.merge(user_ratings, other_user_ratings, on="movie_id")
         similarities[id] = pearson_correlation(user_ratings_ab["rating_x"], user_ratings_ab["rating_y"])
