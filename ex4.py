@@ -72,15 +72,29 @@ def movie_popularity(movies: pd.DataFrame,ratings: pd.DataFrame):
     movie_counts = ratings['movie_id'].value_counts().reset_index()
     movie_counts.columns = ['movie_id', 'num_ratings']
     
-    return pd.merge(movies, movie_counts, on='movie_id', how='left')
+    return pd.merge(movies, movie_counts, on='movie_id', how='left').fillna(0)
+
+def movie_popularity_genres(movies, user_genres):
+    user_genres = pd.Series(user_genres)
+    #get genre-count weights
+    user_genres = user_genres/user_genres.sum()
+
+    # normalize movie popularity
+    movies_with_overlap.num_ratings = movies_with_overlap.num_ratings/movies_with_overlap.num_ratings.max()
+
+    movies["gc_similarity"] = movies["genres"].apply(lambda x: user_genres.loc[list(set(x).intersection(user_genres.index))].sum())
+    movies["gc_similarity"] = movies["gc_similarity"] * movies["num_ratings"]
+
+    return movies
 
 
-def show_recommendations(movies: pd.DataFrame, n: int = 10):
-    print("\nKeyword Recommendations ===================================\n")
-    for i, (_, row) in enumerate(movies.sort_values("num_ratings" if "num_ratings" in movies else "keyword_similarity", ascending=False).iterrows()):
-        print(f"{i+1}) {row['title']} - {', '.join(row['genres'])} - {row['keyword_similarity']:.2f}", end= " - " if "num_ratings" in movies else '\n')
-        if "num_ratings" in movies:
-            print(row["num_ratings"])
+
+def show_recommendations(movies: pd.DataFrame,column: str,title:str="Keyword", n: int = 10):
+    print(f"\n{title} Recommendations ===================================\n")
+    for i, (_, row) in enumerate(movies.sort_values(column, ascending=False).iterrows()):
+        print(f"{i+1}) {row['title']} - {', '.join(row['genres'])} - {row['keyword_similarity']:.2f}", end= " - " if column != "keyword_similarity" else '\n')
+        if column != "keyword_similarity":
+            print(f"{row[column]:.2f}")
         if (i+1) >= n:
             break
     print(f"\n===================================")
@@ -105,16 +119,24 @@ if __name__ == "__main__":
     user_genres, user_movies = database.get_user_profile(user_id, False)
     show_user_profile(user_genres, user_movies)
 
+    # We recommend only movies that the user has not rated
+    relevant_movies = database.movies[~database.movies["movie_id"].isin(user_movies["movie_id"])]
+
     # Clearly with this strategy if the user has liked many different movies the spread of genres is such
     # that the best recommended movies will simply be the ones that have the most genres assigned to them.
-    movies = keyword_similarity(user_genres, database.movies)
-    show_recommendations(movies)
+    movies = keyword_similarity(user_genres, relevant_movies)
+    show_recommendations(movies, "keyword_similarity")
     
-    # Will recommend based on movies that has keyword_similairyty > 0. 
+    # Will recommend based on movies that has keyword_similarity > 0. 
     # And then with number of user ratings on those movies
     # Could possibly be improved alot by introducing some kind of weight. Now we are considering all ratings.
     # With a low overlap-threshold it will most of the times give the same movie recommendation
     movies_with_overlap = movie_popularity(movies, database.ratings)
-    show_recommendations(movies_with_overlap)
+    show_recommendations(movies_with_overlap,"num_ratings", title="Movie Popularity")
+
+    movies_genre_count = movie_popularity_genres(movies_with_overlap, user_genres)
+    show_recommendations(movies_genre_count,"gc_similarity", title="Genre-Count")
+
+
 
     
