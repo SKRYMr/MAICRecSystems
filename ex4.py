@@ -12,6 +12,7 @@ DB_PICKLE_PATH = "./data/database.pickle"
 
 MIN_USER_RATING = 4  # movies with rating equal or higher than this number are used to create the user profile
 MIN_GENRE_OVERLAP = 0.2 # movies with less then this overlap with other movies are not considered //part 3
+N_GENRES = 5 # number of genres to consider in genre count recommendation 
 
 class MovieLens:
     def __init__(self):
@@ -76,8 +77,13 @@ def movie_popularity(movies: pd.DataFrame,ratings: pd.DataFrame):
 
 def movie_popularity_genres(movies, user_genres):
     user_genres = pd.Series(user_genres)
+
     #get genre-count weights
     user_genres = user_genres/user_genres.sum()
+
+    # keep only n most popular genres
+    # if we kept all genres the genre overlap could have bigger effect than weights
+    user_genres = user_genres[:N_GENRES]
 
     # normalize movie popularity
     movies_with_overlap.num_ratings = movies_with_overlap.num_ratings/movies_with_overlap.num_ratings.max()
@@ -134,6 +140,9 @@ if __name__ == "__main__":
     movies_with_overlap = movie_popularity(movies, database.ratings)
     show_recommendations(movies_with_overlap,"num_ratings", title="Movie Popularity")
 
+    
+    # Considers genre overlap, genre count of user profile and number of ratings
+    # Top n genres are considered and weighted based on rating percentage
     movies_genre_count = movie_popularity_genres(movies_with_overlap, user_genres)
     show_recommendations(movies_genre_count,"gc_similarity", title="Genre-Count")
 
