@@ -5,14 +5,17 @@ import pickle
 import sys
 from typing import Dict
 
+# Suppress the warning on chained assignments which doesn't apply to our case
+pd.options.mode.chained_assignment = None  # default='warn'
+
 RATINGS_DAT_FILE = "./data/ratings.dat"
 MOVIES_DAT_FILE = "./data/movies.dat"
 USERS_DAT_FILE = "./data/users.dat"
 DB_PICKLE_PATH = "./data/database.pickle"
 
-MIN_USER_RATING = 4  # movies with rating equal or higher than this number are used to create the user profile
-MIN_GENRE_OVERLAP = 0.2 # movies with less then this overlap with other movies are not considered //part 3
-N_GENRES = 5 # number of genres to consider in genre count recommendation 
+MIN_USER_RATING = 4     # Movies with rating equal or higher than this number are used to create the user profile.
+MIN_GENRE_OVERLAP = 0.2 # Movies with lower overlaps than this will not be considered.
+N_GENRES = 5            # Number of genres to consider in genre count recommendation.
 
 class MovieLens:
     def __init__(self):
@@ -36,13 +39,11 @@ class MovieLens:
 
         return user_genres_weighted, pd.merge(user_movies, user_ratings, on="movie_id", how="inner").drop(columns="user_id")
 
-
 def check_user_id(user_id: int, users: set) -> bool:
     if user_id not in users:
         print("User not found, try again")
         return False
     return True
-
 
 def show_user_profile(genres: Dict[str, int], movies: pd.DataFrame, n: int = 10):
     print("\nUser Profile =======================")
@@ -59,15 +60,14 @@ def show_user_profile(genres: Dict[str, int], movies: pd.DataFrame, n: int = 10)
 
     print(f"\n===================================")
 
-
 def keyword_similarity(user_genres: Dict[str, int], movies: pd.DataFrame):
     genres = set(user_genres.keys())
     n_user_genres = len(genres)
     movies["keyword_similarity"] = movies["genres"].apply(lambda x: (2 * len(set(x).intersection(genres))) / (n_user_genres + len(x)))
     return movies
 
-#part 3 - Remove movies with overlap below the given threshold MIN_GENRE_OVERLAP. Calculate "popularity" based on number of ratings
-def movie_popularity(movies: pd.DataFrame,ratings: pd.DataFrame):
+# Remove movies with overlap below the given threshold MIN_GENRE_OVERLAP. Calculate "popularity" based on number of ratings.
+def movie_popularity(movies: pd.DataFrame, ratings: pd.DataFrame):
     movies = movies[movies['keyword_similarity'] > MIN_GENRE_OVERLAP]
     
     movie_counts = ratings['movie_id'].value_counts().reset_index()
@@ -78,32 +78,32 @@ def movie_popularity(movies: pd.DataFrame,ratings: pd.DataFrame):
 def movie_popularity_genres(movies, user_genres):
     user_genres = pd.Series(user_genres)
 
-    #get genre-count weights
+    # Get genre-count weights
     user_genres = user_genres/user_genres.sum()
 
-    # keep only n most popular genres
-    # if we kept all genres the genre overlap could have bigger effect than weights
+    # Keep only the user's N most favourite genres
+    # If we kept all genres the genre overlap could have bigger effect than weights
     user_genres = user_genres[:N_GENRES]
 
-    # normalize movie popularity
-    movies_with_overlap.num_ratings = movies_with_overlap.num_ratings/movies_with_overlap.num_ratings.max()
+    # Normalize movie popularity
+    movies.num_ratings = movies.num_ratings / movies.num_ratings.max()
 
     movies["gc_similarity"] = movies["genres"].apply(lambda x: user_genres.loc[list(set(x).intersection(user_genres.index))].sum())
     movies["gc_similarity"] = movies["gc_similarity"] * movies["num_ratings"]
 
     return movies
 
-
-
-def show_recommendations(movies: pd.DataFrame,column: str,title:str="Keyword", n: int = 10):
+def show_recommendations(movies: pd.DataFrame, column: str, title:str="Keyword", n: int = 10):
     print(f"\n{title} Recommendations ===================================\n")
     for i, (_, row) in enumerate(movies.sort_values(column, ascending=False).iterrows()):
-        print(f"{i+1}) {row['title']} - {', '.join(row['genres'])} - {row['keyword_similarity']:.2f}", end= " - " if column != "keyword_similarity" else '\n')
+        print(f"{i+1}) {row['title']} - {', '.join(row['genres'])}")
+        print(f"Keyword Similarity: {row['keyword_similarity']:.2f}")
         if column != "keyword_similarity":
-            print(f"{row[column]:.2f}")
+            print(f"{' '.join(column.split('_')).title()}: {row[column]:.2f}")
+        print()
         if (i+1) >= n:
             break
-    print(f"\n===================================")
+    print(f"===================================")
 
 if __name__ == "__main__":
     if os.path.isfile(DB_PICKLE_PATH):
@@ -128,24 +128,20 @@ if __name__ == "__main__":
     # We recommend only movies that the user has not rated
     relevant_movies = database.movies[~database.movies["movie_id"].isin(user_movies["movie_id"])]
 
+    # Recommend movies that have the greatest overlap in genres with the set of the user's favourite genres.
     # Clearly with this strategy if the user has liked many different movies the spread of genres is such
     # that the best recommended movies will simply be the ones that have the most genres assigned to them.
     movies = keyword_similarity(user_genres, relevant_movies)
     show_recommendations(movies, "keyword_similarity")
     
-    # Will recommend based on movies that has keyword_similarity > 0. 
-    # And then with number of user ratings on those movies
+    # Will recommend based on movies that have keyword_similarity > 0. 
+    # And then with number of user ratings on those movies.
     # Could possibly be improved alot by introducing some kind of weight. Now we are considering all ratings.
-    # With a low overlap-threshold it will most of the times give the same movie recommendation
+    # With a low overlap-threshold it will most of the times give the same movie recommendation.
     movies_with_overlap = movie_popularity(movies, database.ratings)
-    show_recommendations(movies_with_overlap,"num_ratings", title="Movie Popularity")
+    show_recommendations(movies_with_overlap, "num_ratings", title="Movie Popularity")
 
-    
     # Considers genre overlap, genre count of user profile and number of ratings
     # Top n genres are considered and weighted based on rating percentage
     movies_genre_count = movie_popularity_genres(movies_with_overlap, user_genres)
-    show_recommendations(movies_genre_count,"gc_similarity", title="Genre-Count")
-
-
-
-    
+    show_recommendations(movies_genre_count, "gc_similarity", title="Genre-Count")
