@@ -22,6 +22,23 @@ def get_movies_recommendations(user_id: int, users: Set[str], ratings: pd.DataFr
     return get_top_movies(user_id, neighbours, ratings, movies)
 
 
+def MAELoss(test_movies: pd.DataFrame, recommended_movies: pd.DataFrame):
+    # MAE loss = 1/n * sum( abs(pred_rating - user_rating) )
+    # n = 10 = num of rec movies
+
+    loss = 0
+    for _, rec_movie in recommended_movies.iterrows():
+        test_movie = test_movies[test_movies["movie_id"] == rec_movie["movie_id"]]
+        if test_movie.empty:
+            # Penelty: assume user ratings of this movie is 0
+            loss += rec_movie["rating"]
+        else:
+            # Mean only because if there are more than 1 rating for the same movie by the user
+            loss += abs(rec_movie["rating"] - test_movie["rating"].mean())
+
+    return loss / 10
+
+
 class MovieLens:
     def __init__(self):
         try:
@@ -57,7 +74,7 @@ if __name__ == "__main__":
         with open(DB_PICKLE_PATH, "wb") as f:
             pickle.dump(database, f)
 
-    database.use_subset(0.95)
+    database.use_subset(0.5)
 
     train_ratings, test_ratings = database.split_ratings()
 
@@ -65,14 +82,25 @@ if __name__ == "__main__":
     RMSE = []
     total_count = 0
 
-    for user_id in test_ratings["user_id"].unique():
+    for i, user_id in enumerate(test_ratings["user_id"].unique()):
         user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
         recommended_movies = get_movies_recommendations(user_id, database.users, train_ratings, database.movies)
 
         # Find loss MAE and RMSE loss
+        mae_loss = MAELoss(user_test_movies, recommended_movies)
 
+        MAE.append(mae_loss)
+        total_count += 1
 
-        break
+        if i >= 10:
+            break
+            
+        # Question: do we take average of average(doing this now), or just a single average
 
-    print(f"Avg MAE Loss: {sum(MAE) / total_count}")
-    print(f"Avg RMSE Loss: {sum(RMSE) / total_count}")
+    print(f"Total users: {total_count}")
+    print("MAE Loss")
+    print(f"    Total: {sum(MAE)}")
+    print(f"    Average: {sum(MAE) / total_count}")
+    print(f"    Max: {max(MAE)}")
+    print(f"    Min: {min(MAE)}")
+
