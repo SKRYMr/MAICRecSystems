@@ -97,7 +97,7 @@ def get_top_movies(user_id: int, neighbours: list, ratings: pd.DataFrame, movies
     neighbours_ratings = neighbours_ratings[neighbours_ratings["movie_id"].map(neighbours_ratings["movie_id"].value_counts()) >= 5]
     neighbours_ratings = neighbours_ratings.groupby("movie_id").rating.mean().reset_index()
     neighbours_ratings.sort_values("rating", ascending=False, inplace=True)
-    neighbours_ratings = neighbours_ratings.head(10)
+    # neighbours_ratings = neighbours_ratings.head(10)
     return pd.merge(neighbours_ratings, movies, on="movie_id")
     #return show_movies(neighbours_movies, 10, recommendation=True)
 

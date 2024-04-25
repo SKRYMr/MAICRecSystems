@@ -8,7 +8,6 @@ from typing import Set
 
 from ex3 import find_k_nearest, get_top_movies
 
-
 RATINGS_DAT_FILE = "./data/ratings.dat"
 MOVIES_DAT_FILE = "./data/movies.dat"
 USERS_DAT_FILE = "./data/users.dat"
@@ -21,33 +20,18 @@ def get_movies_recommendations(user_id: int, users: Set[int], ratings: pd.DataFr
     neighbours = find_k_nearest(user_id, users, ratings, NEIGHBOURHOOD_SIZE)
     return get_top_movies(user_id, neighbours, ratings, movies)
 
-
-def MAELoss(test_movies: pd.DataFrame, recommended_movies: pd.DataFrame):
-    # MAE loss = 1/n * sum( abs(pred_rating - user_rating) )
-    # n = 10 = num of rec movies
-
-    loss = 0
-    for _, rec_movie in recommended_movies.iterrows():
-        test_movie = test_movies[test_movies["movie_id"] == rec_movie["movie_id"]]
-        if test_movie.empty:
-            # Penelty: assume user ratings of this movie is 0
-            loss += rec_movie["rating"]
-        else:
-            # Mean only because if there are more than 1 rating for the same movie by the user
-            loss += abs(rec_movie["rating"] - test_movie["rating"].mean())
-
-    return loss / 10
-
-
 class MovieLens:
     def __init__(self):
         try:
-            self.ratings = pd.read_table(RATINGS_DAT_FILE, engine="python", sep="::", usecols=[0, 1, 2], names=["user_id", "movie_id", "rating"], dtype={"rating": np.float32})
+            self.ratings = pd.read_table(RATINGS_DAT_FILE, engine="python", sep="::", usecols=[0, 1, 2],
+                                         names=["user_id", "movie_id", "rating"], dtype={"rating": np.float32})
 
-            self.movies = pd.read_table(MOVIES_DAT_FILE, engine="python", sep="::", names=["movie_id", "title", "genres"], encoding="latin")
+            self.movies = pd.read_table(MOVIES_DAT_FILE, engine="python", sep="::",
+                                        names=["movie_id", "title", "genres"], encoding="latin")
             self.movies["genres"] = self.movies["genres"].apply(lambda x: x.split("|"))  # convert genres to list
 
-            self.users = set(pd.read_table(USERS_DAT_FILE, engine="python", sep="::", usecols=[0], names=["user_id"])["user_id"].unique())
+            self.users = set(pd.read_table(USERS_DAT_FILE, engine="python", sep="::", usecols=[0], names=["user_id"])[
+                                 "user_id"].unique())
         except FileNotFoundError:
             print("Some database files are missing.")
             sys.exit(0)
@@ -59,24 +43,28 @@ class MovieLens:
         self.users = set(self.users)
 
         # Remove ratings of users and movies which are not in the subset
-        self.ratings = self.ratings[(self.ratings["user_id"].isin(self.users)) & (self.ratings["movie_id"].isin(self.movies["movie_id"]))]
+        self.ratings = self.ratings[
+            (self.ratings["user_id"].isin(self.users)) & (self.ratings["movie_id"].isin(self.movies["movie_id"]))]
 
     def split_ratings(self, test_size=0.2):
         return train_test_split(self.ratings, test_size=test_size)
-    
-def get_prediction(movie_id: int, user_id: int,neighbours: list, train_ratings: pd.DataFrame) -> float:
-    neighbor_ratings = train_ratings[train_ratings['user_id'].isin(neighbours) & (train_ratings['movie_id'] == movie_id)]
+
+
+def get_prediction(movie_id: int, user_id: int, neighbours: list, train_ratings: pd.DataFrame) -> float:
+    neighbor_ratings = train_ratings[
+        train_ratings['user_id'].isin(neighbours) & (train_ratings['movie_id'] == movie_id)]
     # Get the mean to be used as "penalty"-prediction if no neighbours has watched the given movie.
     user_mean_rating = train_ratings[train_ratings['user_id'] == user_id]['rating'].mean()
-    
+
     if neighbor_ratings.empty:
-        #If no neighbour has watched the rated movie. Assume that the user would rate it similar as his "average" rating
+        # If no neighbour has watched the rated movie. Assume that the user would rate it similar as his "average" rating
         predicted_rating = user_mean_rating
     else:
         predicted_rating = neighbor_ratings['rating'].mean()
-    
+
     # Round it. Ratings are given by 1,2,3,4 or 5.
     return round(predicted_rating)
+
 
 def calculate_errors(predictions: pd.Series, true_ratings: pd.Series) -> tuple:
     mae = abs(predictions - true_ratings).mean()
@@ -84,7 +72,9 @@ def calculate_errors(predictions: pd.Series, true_ratings: pd.Series) -> tuple:
 
     return mae, rmse
 
-def predict_by_neighbours(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, users, NEIGHBOURHOOD_SIZE, max_iterations=10):
+
+def predict_by_neighbours(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, users, NEIGHBOURHOOD_SIZE,
+                          max_iterations=10):
     predictions = []
     true_ratings = []
 
@@ -92,17 +82,17 @@ def predict_by_neighbours(test_ratings: pd.DataFrame, train_ratings: pd.DataFram
         user_id = test_row['user_id']
         movie_id = test_row['movie_id']
         user_rating = test_row['rating']
-        
-        
+
         neighbours = find_k_nearest(user_id, users, train_ratings, NEIGHBOURHOOD_SIZE)
-        pred = get_prediction(movie_id, user_id,neighbours, train_ratings)
+        pred = get_prediction(movie_id, user_id, neighbours, train_ratings)
         predictions.append(pred)
         true_ratings.append(user_rating)
-        
+
         if len(predictions) == max_iterations:
             break
-        
+
     return predictions, true_ratings
+
 
 def evaluate_predictions(predictions, true_ratings):
     mae, rmse = calculate_errors(pd.Series(predictions), pd.Series(true_ratings))
@@ -128,31 +118,21 @@ if __name__ == "__main__":
 
     MAE = []
     RMSE = []
-    total_count = 0
-
     for i, user_id in enumerate(test_ratings["user_id"].unique()):
         user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
         recommended_movies = get_movies_recommendations(user_id, database.users, train_ratings, database.movies)
 
-        # Find loss MAE and RMSE loss
-        mae_loss = MAELoss(user_test_movies, recommended_movies)
+        df = pd.merge(user_test_movies, recommended_movies, on="movie_id")
 
-        MAE.append(mae_loss)
-        total_count += 1
+        MAE += abs(df["rating_y"] - df["rating_x"]).tolist()
+        RMSE += (df["rating_y"] - df["rating_x"]).tolist()
 
-        if i >= 10:
-            break
-            
-        # Question: do we take average of average(doing this now), or just a single average
+        break
 
-    print(f"Total users: {total_count}")
-    print("MAE Loss")
-    print(f"    Total: {sum(MAE)}")
-    print(f"    Average: {sum(MAE) / total_count}")
-    print(f"    Max: {max(MAE)}")
-    print(f"    Min: {min(MAE)}")
-    
+    print(f"MSE: {sum(MAE) / len(MAE)}")
+    print(f"RMSE: {np.sqrt(sum(MAE) / len(MAE))}")
+
     # Predicts ratings based on the nearest neighbours average ratings on the movies.
-    predictions, true_ratings = predict_by_neighbours(test_ratings, train_ratings, database.users, NEIGHBOURHOOD_SIZE)
-    evaluate_predictions(predictions, true_ratings)
+    #predictions, true_ratings = predict_by_neighbours(test_ratings, train_ratings, database.users, NEIGHBOURHOOD_SIZE)
+    #evaluate_predictions(predictions, true_ratings)
 
