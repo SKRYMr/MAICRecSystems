@@ -124,7 +124,8 @@ if __name__ == "__main__":
         user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
         recommended_movies = get_movies_recommendations(user_id, database.users, train_ratings, database.movies)
 
-        df = pd.merge(user_test_movies, recommended_movies, on="movie_id")
+        df = pd.merge(user_test_movies, recommended_movies, on="movie_id", how="left") # merge on movie_id which are test set
+        df["rating_y"] = df["rating_y"].fillna(0) # if the pred rating does not exist, use 0
 
         MAE += abs(df["rating_y"] - df["rating_x"]).tolist()
         RMSE += (df["rating_y"] - df["rating_x"]).tolist()
@@ -132,7 +133,7 @@ if __name__ == "__main__":
         if i == 10:
             break
     print(time.time() - s)
-    print(len(MAE))
+    print(f"Rows covered: {len(MAE)}")
     print(f"MSE: {sum(MAE) / len(MAE)}")
     print(f"RMSE: {np.sqrt(sum(MAE) / len(MAE))}")
 
