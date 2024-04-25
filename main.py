@@ -24,6 +24,15 @@ class MovieLens:
             print("Some database files are missing.")
             sys.exit(0)
 
+    def use_subset(self, size=0.5):
+        # Size = what percentage of orignal data to use
+        self.movies, _ = train_test_split(self.movies, train_size=size)
+        self.users, _ = train_test_split(list(self.users), train_size=size)
+        self.users = set(self.users)
+        
+        # Remove ratings of users which are not in the subset
+        self.ratings = self.ratings[~self.ratings["user_id"].isin(self.users)]
+
     def split_ratings(self, test_size=0.2):
         return train_test_split(self.ratings, test_size=test_size)
 
@@ -37,4 +46,7 @@ if __name__ == "__main__":
         with open(DB_PICKLE_PATH, "wb") as f:
             pickle.dump(database, f)
 
+    database.use_subset(0.5)
+
     train_ratings, test_ratings = database.split_ratings()
+
