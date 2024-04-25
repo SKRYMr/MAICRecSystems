@@ -63,6 +63,54 @@ class MovieLens:
 
     def split_ratings(self, test_size=0.2):
         return train_test_split(self.ratings, test_size=test_size)
+    
+def get_prediction(movie_id: int, user_id: int,neighbours: list, train_ratings: pd.DataFrame) -> float:
+    neighbor_ratings = train_ratings[train_ratings['user_id'].isin(neighbours) & (train_ratings['movie_id'] == movie_id)]
+    # Get the mean to be used as "penalty"-prediction if no neighbours has watched the given movie.
+    user_mean_rating = train_ratings[train_ratings['user_id'] == user_id]['rating'].mean()
+    
+    if neighbor_ratings.empty:
+        #If no neighbour has watched the rated movie. Assume that the user would rate it similar as his "average" rating
+        predicted_rating = user_mean_rating
+    else:
+        predicted_rating = neighbor_ratings['rating'].mean()
+    
+    # Round it. Ratings are given by 1,2,3,4 or 5.
+    return round(predicted_rating)
+
+def calculate_errors(predictions: pd.Series, true_ratings: pd.Series) -> tuple:
+    mae = abs(predictions - true_ratings).mean()
+    rmse = np.sqrt(((predictions - true_ratings) ** 2).mean())
+
+    return mae, rmse
+
+def predict_by_neighbours(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, users, NEIGHBOURHOOD_SIZE, max_iterations=10):
+    predictions = []
+    true_ratings = []
+
+    for _, test_row in test_ratings.iterrows():
+        user_id = test_row['user_id']
+        movie_id = test_row['movie_id']
+        user_rating = test_row['rating']
+        
+        
+        neighbours = find_k_nearest(user_id, users, train_ratings, NEIGHBOURHOOD_SIZE)
+        pred = get_prediction(movie_id, user_id,neighbours, train_ratings)
+        predictions.append(pred)
+        true_ratings.append(user_rating)
+        
+        if len(predictions) == max_iterations:
+            break
+        
+    return predictions, true_ratings
+
+def evaluate_predictions(predictions, true_ratings):
+    mae, rmse = calculate_errors(pd.Series(predictions), pd.Series(true_ratings))
+
+    print(f"Total predictions: {len(predictions)}")
+    print("Loss")
+    print(f"    MAE: {mae}")
+    print(f"    RMSE: {rmse:.3f}")
 
 
 if __name__ == "__main__":
@@ -103,4 +151,8 @@ if __name__ == "__main__":
     print(f"    Average: {sum(MAE) / total_count}")
     print(f"    Max: {max(MAE)}")
     print(f"    Min: {min(MAE)}")
+    
+    # Predicts ratings based on the nearest neighbours average ratings on the movies.
+    predictions, true_ratings = predict_by_neighbours(test_ratings, train_ratings, database.users, NEIGHBOURHOOD_SIZE)
+    evaluate_predictions(predictions, true_ratings)
 
