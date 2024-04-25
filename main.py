@@ -5,6 +5,7 @@ import pickle
 import sys
 from sklearn.model_selection import train_test_split
 from typing import Set
+import time
 
 from ex3 import find_k_nearest, get_top_movies
 
@@ -118,6 +119,7 @@ if __name__ == "__main__":
 
     MAE = []
     RMSE = []
+    s = time.time()
     for i, user_id in enumerate(test_ratings["user_id"].unique()):
         user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
         recommended_movies = get_movies_recommendations(user_id, database.users, train_ratings, database.movies)
@@ -127,12 +129,18 @@ if __name__ == "__main__":
         MAE += abs(df["rating_y"] - df["rating_x"]).tolist()
         RMSE += (df["rating_y"] - df["rating_x"]).tolist()
 
-        break
-
+        if i == 10:
+            break
+    print(time.time() - s)
+    print(len(MAE))
     print(f"MSE: {sum(MAE) / len(MAE)}")
     print(f"RMSE: {np.sqrt(sum(MAE) / len(MAE))}")
 
+    s = time.time()
     # Predicts ratings based on the nearest neighbours average ratings on the movies.
-    #predictions, true_ratings = predict_by_neighbours(test_ratings, train_ratings, database.users, NEIGHBOURHOOD_SIZE)
-    #evaluate_predictions(predictions, true_ratings)
-
+    predictions, true_ratings = predict_by_neighbours(test_ratings, train_ratings, database.users, NEIGHBOURHOOD_SIZE)
+    evaluate_predictions(predictions, true_ratings)
+    print(time.time() - s)
+    
+    # aakash 10 user -> 80sec, rows covered = 75
+    # filip 10 row -> 71sec
