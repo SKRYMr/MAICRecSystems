@@ -17,7 +17,7 @@ DB_PICKLE_PATH = "./data/database.pickle"
 NEIGHBOURHOOD_SIZE = 50
 
 
-def get_movies_recommendations(user_id: int, users: Set[str], ratings: pd.DataFrame, movies: pd.DataFrame):
+def get_movies_recommendations(user_id: int, users: Set[int], ratings: pd.DataFrame, movies: pd.DataFrame):
     neighbours = find_k_nearest(user_id, users, ratings, NEIGHBOURHOOD_SIZE)
     return get_top_movies(user_id, neighbours, ratings, movies)
 
