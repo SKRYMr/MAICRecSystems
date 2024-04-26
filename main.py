@@ -14,7 +14,7 @@ MOVIES_DAT_FILE = "./data/movies.dat"
 USERS_DAT_FILE = "./data/users.dat"
 DB_PICKLE_PATH = "./data/database.pickle"
 
-NEIGHBOURHOOD_SIZE = 50
+NEIGHBOURHOOD_SIZE = 100
 
 
 def get_movies_recommendations(user_id: int, users: Set[int], ratings: pd.DataFrame, movies: pd.DataFrame):
@@ -54,6 +54,7 @@ def get_predictions(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, use
     predictions = []
     
     for i, user_id in enumerate(test_ratings["user_id"].unique()):
+        s = time.time()
         user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
         recommended_movies = get_movies_recommendations(user_id, users, train_ratings, movies)
 
@@ -66,6 +67,7 @@ def get_predictions(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, use
 
         df["rating_y"] = df["rating_y"].apply(round)
         predictions += df[["rating_x", "rating_y"]].values.tolist()
+        print(f"One iteration time: {time.time() - s}")
         if i == num_users:
             break
     return predictions
@@ -101,6 +103,8 @@ if __name__ == "__main__":
     print(f"Time to get predicitons: {time.time() - s}")
     MAE, RMSE = calculate_error(predictions)
     print_error(MAE, RMSE, len(predictions))
+    print(predictions)
+
     
     # Predictions when filling "non-recommendations" with the users average rating.
     print("---------------------")

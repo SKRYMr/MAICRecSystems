@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import sys
+import time
 
 RATINGS_DAT_FILE = "./data/ratings.dat"
 MOVIES_DAT_FILE = "./data/movies.dat"
@@ -78,6 +79,7 @@ def pearson_correlation(col1, col2) -> float:
 
 
 def find_k_nearest(user_id: int, users: set, ratings: pd.DataFrame, k: int) -> list:
+    s = time.time()
     similarities = {}
     user_ratings = ratings[ratings.user_id == int(user_id)]
     for id in users - {user_id}:
@@ -86,11 +88,14 @@ def find_k_nearest(user_id: int, users: set, ratings: pd.DataFrame, k: int) -> l
         similarities[id] = pearson_correlation(user_ratings_ab["rating_x"], user_ratings_ab["rating_y"])
     similarities_sorted = sorted(similarities.items(), key=lambda item: item[1], reverse=True)
     users = [user[0] for user in similarities_sorted[:k]]
+    print(f"Time to get nearest neighbours: {time.time() - s}")
+
     return users
 
 
 def get_top_movies(user_id: int, neighbours: list, ratings: pd.DataFrame, movies: pd.DataFrame):
     #user_ratings = database.get_user_ratings(user_id)
+    s = time.time()
     user_ratings = ratings[ratings["user_id"] == user_id]
     neighbours_ratings = ratings[ratings.user_id.isin(neighbours)]
     neighbours_ratings = neighbours_ratings[~neighbours_ratings.movie_id.isin(user_ratings.movie_id)]
@@ -98,6 +103,7 @@ def get_top_movies(user_id: int, neighbours: list, ratings: pd.DataFrame, movies
     neighbours_ratings = neighbours_ratings.groupby("movie_id").rating.mean().reset_index()
     neighbours_ratings.sort_values("rating", ascending=False, inplace=True)
     # neighbours_ratings = neighbours_ratings.head(10)
+    print(f"Time to get top movies: {time.time() - s}")
     return pd.merge(neighbours_ratings, movies, on="movie_id")
     #return show_movies(neighbours_movies, 10, recommendation=True)
 
