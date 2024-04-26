@@ -64,12 +64,14 @@ def get_predictions(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, use
             user_mean_rating = train_ratings[train_ratings['user_id'] == user_id]['rating'].mean()
             df["rating_y"] = df["rating_y"].fillna(user_mean_rating) # if the pred rating does not exist, use user average rating
 
+        df["rating_y"] = df["rating_y"].apply(round)
         predictions += df[["rating_x", "rating_y"]].values.tolist()
         if i == num_users:
             break
     return predictions
 
 def calculate_error(predictions):
+    # Predictions[:, 1] = rating_y = the prediction. Column 0 = rating_x = the rating from test set
     MAE = np.mean(np.abs(np.array(predictions)[:, 1] - np.array(predictions)[:, 0]))
     RMSE = np.sqrt(np.mean((np.array(predictions)[:, 1] - np.array(predictions)[:, 0]) ** 2))
     return MAE, RMSE 
@@ -107,6 +109,7 @@ if __name__ == "__main__":
     print(f"Time to get predicitons: {time.time() - s}")
     MAE, RMSE = calculate_error(predictions)
     print_error(MAE, RMSE, len(predictions))
+    print(predictions)
     
     
     
