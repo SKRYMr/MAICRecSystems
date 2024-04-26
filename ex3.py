@@ -82,10 +82,10 @@ def find_k_nearest(user_id: int, users: set, ratings: pd.DataFrame, k: int) -> l
     s = time.time()
     similarities = {}
     user_ratings = ratings[ratings.user_id == int(user_id)]
+    ratings_comparison = pd.merge(user_ratings, ratings, on="movie_id")
     for id in users - {user_id}:
-        other_user_ratings = ratings[ratings.user_id == int(id)]
-        user_ratings_ab = pd.merge(user_ratings, other_user_ratings, on="movie_id")
-        similarities[id] = pearson_correlation(user_ratings_ab["rating_x"], user_ratings_ab["rating_y"])
+        other_user_ratings = ratings_comparison[ratings_comparison.user_id_y == int(id)]
+        similarities[id] = pearson_correlation(other_user_ratings["rating_x"], other_user_ratings["rating_y"])
     similarities_sorted = sorted(similarities.items(), key=lambda item: item[1], reverse=True)
     users = [user[0] for user in similarities_sorted[:k]]
     print(f"Time to get nearest neighbours: {time.time() - s}")

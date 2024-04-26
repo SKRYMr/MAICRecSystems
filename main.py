@@ -14,7 +14,7 @@ MOVIES_DAT_FILE = "./data/movies.dat"
 USERS_DAT_FILE = "./data/users.dat"
 DB_PICKLE_PATH = "./data/database.pickle"
 
-NEIGHBOURHOOD_SIZE = 100
+NEIGHBOURHOOD_SIZE = 50
 
 
 def get_movies_recommendations(user_id: int, users: Set[int], ratings: pd.DataFrame, movies: pd.DataFrame):
