@@ -72,6 +72,32 @@ def get_predictions(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, use
             break
     return predictions
 
+def get_user_predictions(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, users: set, movies: pd.DataFrame, num_users: int=10,fillNaValue: str="zero"):
+    user_predictions = {}
+    
+    for i, user_id in enumerate(train_ratings["user_id"].unique()):
+        s = time.time()
+        user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
+        recommended_movies = get_movies_recommendations(user_id, users, train_ratings, movies)
+
+        df = pd.merge(user_test_movies, recommended_movies, on="movie_id", how="left") # merge on movie_id which are test set
+        if fillNaValue == "zero":
+            df["rating_y"] = df["rating_y"].fillna(0) # if the pred rating does not exist, use 0
+        elif fillNaValue == "user_mean_rating":
+            user_mean_rating = train_ratings[train_ratings['user_id'] == user_id]['rating'].mean()
+            df["rating_y"] = df["rating_y"].fillna(user_mean_rating) # if the pred rating does not exist, use user average rating
+
+        df["rating_y"] = df["rating_y"].apply(round)
+        predictions = df[["rating_x", "rating_y"]].values.tolist()
+        predictions.sort(key=lambda x: x[1], reverse=True)
+        print(predictions)
+        user_predictions[user_id] = predictions[:10]
+        if i == num_users:
+            break
+        print(f"One iteration time: {time.time() - s}")
+    return user_predictions
+
+
 def calculate_error(predictions):
     # Predictions[:, 1] = rating_y = the prediction. Column 0 = rating_x = the rating from test set
     MAE = np.mean(np.abs(np.array(predictions)[:, 1] - np.array(predictions)[:, 0]))
@@ -98,22 +124,27 @@ if __name__ == "__main__":
     train_ratings, test_ratings = database.split_ratings()
 
     # Predictions when filling "non-recommendations" with 0 rating.
-    s = time.time()
-    predictions = get_predictions(test_ratings, train_ratings, database.users, database.movies, fillNaValue="zero")
-    print(f"Time to get predicitons: {time.time() - s}")
-    MAE, RMSE = calculate_error(predictions)
-    print_error(MAE, RMSE, len(predictions))
-    print(predictions)
+    # s = time.time()
+    # predictions = get_predictions(test_ratings, train_ratings, database.users, database.movies, fillNaValue="zero")
+    # print(f"Time to get predictions: {time.time() - s}")
+    # MAE, RMSE = calculate_error(predictions)
+    # print_error(MAE, RMSE, len(predictions))
+    # print(predictions)
 
     
-    # Predictions when filling "non-recommendations" with the users average rating.
-    print("---------------------")
-    s = time.time()
-    predictions = get_predictions(test_ratings, train_ratings, database.users, database.movies, fillNaValue="user_mean_rating")
-    print(f"Time to get predicitons: {time.time() - s}")
-    MAE, RMSE = calculate_error(predictions)
-    print_error(MAE, RMSE, len(predictions))
-    print(predictions)
+    # # Predictions when filling "non-recommendations" with the users average rating.
+    # print("---------------------")
+    # s = time.time()
+    # predictions = get_predictions(test_ratings, train_ratings, database.users, database.movies, fillNaValue="user_mean_rating")
+    # print(f"Time to get predictions: {time.time() - s}")
+    # MAE, RMSE = calculate_error(predictions)
+    # print_error(MAE, RMSE, len(predictions))
+    # print(predictions)
+
+    # Task 2
+
+    user_predictions = get_user_predictions(test_ratings, train_ratings, database.users, database.movies, fillNaValue="zero")
+    print(user_predictions)  
     
     
     
