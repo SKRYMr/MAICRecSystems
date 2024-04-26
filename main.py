@@ -49,60 +49,36 @@ class MovieLens:
 
     def split_ratings(self, test_size=0.2):
         return train_test_split(self.ratings, test_size=test_size)
-
-
-def get_prediction(movie_id: int, user_id: int, neighbours: list, train_ratings: pd.DataFrame) -> float:
-    neighbor_ratings = train_ratings[
-        train_ratings['user_id'].isin(neighbours) & (train_ratings['movie_id'] == movie_id)]
-    # Get the mean to be used as "penalty"-prediction if no neighbours has watched the given movie.
-    user_mean_rating = train_ratings[train_ratings['user_id'] == user_id]['rating'].mean()
-
-    if neighbor_ratings.empty:
-        # If no neighbour has watched the rated movie. Assume that the user would rate it similar as his "average" rating
-        predicted_rating = user_mean_rating
-    else:
-        predicted_rating = neighbor_ratings['rating'].mean()
-
-    # Round it. Ratings are given by 1,2,3,4 or 5.
-    return round(predicted_rating)
-
-
-def calculate_errors(predictions: pd.Series, true_ratings: pd.Series) -> tuple:
-    mae = abs(predictions - true_ratings).mean()
-    rmse = np.sqrt(((predictions - true_ratings) ** 2).mean())
-
-    return mae, rmse
-
-
-def predict_by_neighbours(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, users, NEIGHBOURHOOD_SIZE,
-                          max_iterations=10):
+    
+def get_predictions(test_ratings: pd.DataFrame, train_ratings: pd.DataFrame, users: set, movies: pd.DataFrame, num_users: int=10,fillNaValue: str="zero"):
     predictions = []
-    true_ratings = []
+    
+    for i, user_id in enumerate(test_ratings["user_id"].unique()):
+        user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
+        recommended_movies = get_movies_recommendations(user_id, users, train_ratings, movies)
 
-    for _, test_row in test_ratings.iterrows():
-        user_id = test_row['user_id']
-        movie_id = test_row['movie_id']
-        user_rating = test_row['rating']
+        df = pd.merge(user_test_movies, recommended_movies, on="movie_id", how="left") # merge on movie_id which are test set
+        if fillNaValue == "zero":
+            df["rating_y"] = df["rating_y"].fillna(0) # if the pred rating does not exist, use 0
+        elif fillNaValue == "user_mean_rating":
+            user_mean_rating = train_ratings[train_ratings['user_id'] == user_id]['rating'].mean()
+            df["rating_y"] = df["rating_y"].fillna(user_mean_rating) # if the pred rating does not exist, use user average rating
 
-        neighbours = find_k_nearest(user_id, users, train_ratings, NEIGHBOURHOOD_SIZE)
-        pred = get_prediction(movie_id, user_id, neighbours, train_ratings)
-        predictions.append(pred)
-        true_ratings.append(user_rating)
-
-        if len(predictions) == max_iterations:
+        predictions += df[["rating_x", "rating_y"]].values.tolist()
+        if i == num_users:
             break
+    return predictions
 
-    return predictions, true_ratings
+def calculate_error(predictions):
+    MAE = np.mean(np.abs(np.array(predictions)[:, 1] - np.array(predictions)[:, 0]))
+    RMSE = np.sqrt(np.mean((np.array(predictions)[:, 1] - np.array(predictions)[:, 0]) ** 2))
+    return MAE, RMSE 
 
-
-def evaluate_predictions(predictions, true_ratings):
-    mae, rmse = calculate_errors(pd.Series(predictions), pd.Series(true_ratings))
-
-    print(f"Total predictions: {len(predictions)}")
-    print("Loss")
-    print(f"    MAE: {mae}")
-    print(f"    RMSE: {rmse:.3f}")
-
+def print_error(mae, rmse, rows_covered):
+    print(f"Rows covered: {rows_covered}")
+    print(f"Loss:")
+    print(f"Mean Absolute Error (MAE): {mae:.3f}")
+    print(f"Root Mean Squared Error (RMSE): {rmse:.3f}")
 
 if __name__ == "__main__":
     if os.path.isfile(DB_PICKLE_PATH):
@@ -117,31 +93,22 @@ if __name__ == "__main__":
 
     train_ratings, test_ratings = database.split_ratings()
 
-    MAE = []
-    RMSE = []
+    # Predictions when filling "non-recommendations" with 0 rating.
     s = time.time()
-    for i, user_id in enumerate(test_ratings["user_id"].unique()):
-        user_test_movies = test_ratings[test_ratings["user_id"] == user_id]
-        recommended_movies = get_movies_recommendations(user_id, database.users, train_ratings, database.movies)
-
-        df = pd.merge(user_test_movies, recommended_movies, on="movie_id", how="left") # merge on movie_id which are test set
-        df["rating_y"] = df["rating_y"].fillna(0) # if the pred rating does not exist, use 0
-
-        MAE += abs(df["rating_y"] - df["rating_x"]).tolist()
-        RMSE += (df["rating_y"] - df["rating_x"]).tolist()
-
-        if i == 10:
-            break
-    print(time.time() - s)
-    print(f"Rows covered: {len(MAE)}")
-    print(f"MSE: {sum(MAE) / len(MAE)}")
-    print(f"RMSE: {np.sqrt(sum(MAE) / len(MAE))}")
-
-    s = time.time()
-    # Predicts ratings based on the nearest neighbours average ratings on the movies.
-    predictions, true_ratings = predict_by_neighbours(test_ratings, train_ratings, database.users, NEIGHBOURHOOD_SIZE)
-    evaluate_predictions(predictions, true_ratings)
-    print(time.time() - s)
+    predictions = get_predictions(test_ratings, train_ratings, database.users, database.movies, fillNaValue="zero")
+    print(f"Time to get predicitons: {time.time() - s}")
+    MAE, RMSE = calculate_error(predictions)
+    print_error(MAE, RMSE, len(predictions))
     
-    # aakash 10 user -> 80sec, rows covered = 75
-    # filip 10 row -> 71sec
+    # Predictions when filling "non-recommendations" with the users average rating.
+    print("---------------------")
+    s = time.time()
+    predictions = get_predictions(test_ratings, train_ratings, database.users, database.movies, fillNaValue="user_mean_rating")
+    print(f"Time to get predicitons: {time.time() - s}")
+    MAE, RMSE = calculate_error(predictions)
+    print_error(MAE, RMSE, len(predictions))
+    
+    
+    
+  
+    
