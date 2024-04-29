@@ -2,6 +2,11 @@ import numpy as np
 import pandas as pd
 import sys
 import time
+from typing import Tuple, Literal
+
+TIME_FUNCS = False
+NEIGHBOURHOOD_SIZE = 50
+MINIMUM_COMMON_RATINGS = 5
 
 RATINGS_DAT_FILE = "./data/ratings.dat"
 MOVIES_DAT_FILE = "./data/movies.dat"
@@ -16,6 +21,7 @@ class MovieLens():
                                         names=["movie_id", "title", "genres"], encoding="latin")
             self.users = set(pd.read_table(USERS_DAT_FILE, engine="python", sep="::", usecols=[0], names=["user_id"])[
                                  "user_id"].unique())
+            self.similarities = {}
         except FileNotFoundError as err:
             print("Some database files are missing.")
             sys.exit(0)
@@ -78,34 +84,43 @@ def pearson_correlation(col1, col2) -> float:
     return a / ((b * c) ** 0.5)
 
 
-def find_k_nearest(user_id: int, users: set, ratings: pd.DataFrame, k: int) -> list:
-    s = time.time()
+def find_k_nearest(user_id: int, users: set, ratings: pd.DataFrame, k: int, minimum_common_ratings: int = 5) -> Tuple[list, dict]:
+    s = time.time() if TIME_FUNCS else 0
     similarities = {}
     user_ratings = ratings[ratings.user_id == int(user_id)]
     ratings_comparison = pd.merge(user_ratings, ratings, on="movie_id")
     for id in users - {user_id}:
         other_user_ratings = ratings_comparison[ratings_comparison.user_id_y == int(id)]
+        if len(other_user_ratings) < minimum_common_ratings:
+            continue
         similarities[id] = pearson_correlation(other_user_ratings["rating_x"], other_user_ratings["rating_y"])
     similarities_sorted = sorted(similarities.items(), key=lambda item: item[1], reverse=True)
     users = [user[0] for user in similarities_sorted[:k]]
-    print(f"Time to get nearest neighbours: {time.time() - s}")
+    if TIME_FUNCS: print(f"Time to get nearest neighbours: {time.time() - s:.3f}")
+    return users, similarities
 
-    return users
 
-
-def get_top_movies(user_id: int, neighbours: list, ratings: pd.DataFrame, movies: pd.DataFrame):
-    #user_ratings = database.get_user_ratings(user_id)
-    s = time.time()
+def get_top_movies(user_id: int, neighbours: list, ratings: pd.DataFrame, movies: pd.DataFrame, similarities: pd.DataFrame = {}, minimum_ratings: int = 5, metric: Literal["neighbours_average", "bias_correction"] = "neighbours_average") -> pd.DataFrame:
+    s = time.time() if TIME_FUNCS else 0
     user_ratings = ratings[ratings["user_id"] == user_id]
     neighbours_ratings = ratings[ratings.user_id.isin(neighbours)]
-    neighbours_ratings = neighbours_ratings[~neighbours_ratings.movie_id.isin(user_ratings.movie_id)]
-    neighbours_ratings = neighbours_ratings[neighbours_ratings["movie_id"].map(neighbours_ratings["movie_id"].value_counts()) >= 5]
-    neighbours_ratings = neighbours_ratings.groupby("movie_id").rating.mean().reset_index()
-    neighbours_ratings.sort_values("rating", ascending=False, inplace=True)
-    # neighbours_ratings = neighbours_ratings.head(10)
-    print(f"Time to get top movies: {time.time() - s}")
-    return pd.merge(neighbours_ratings, movies, on="movie_id")
-    #return show_movies(neighbours_movies, 10, recommendation=True)
+    if metric == "bias_correction" and len(similarities) > 0:
+        user_avg_rating = user_ratings.rating.mean()
+        avg_neighbours_ratings = neighbours_ratings.groupby("user_id").rating.mean().reset_index()
+        similarities_sum = sum(similarities.values())
+        predicted_ratings = [(movie_id, user_avg_rating + 
+                                       (sum([similarities[neighbour_id]*(rating.item() - avg_neighbours_ratings[avg_neighbours_ratings["user_id"] == neighbour_id].rating.item() if not (rating := ratings[(ratings["user_id"] == neighbour_id) & (ratings["movie_id"] == movie_id)].rating).empty else 0) for neighbour_id in neighbours])
+                                         / similarities_sum))
+                              for movie_id in movies[movies.movie_id.isin(neighbours_ratings.movie_id.unique())].movie_id.unique()]
+        predicted_ratings = pd.DataFrame(predicted_ratings, columns=["movie_id", "rating"])
+        predicted_ratings.sort_values("rating", ascending=False, inplace=True)
+    else:
+        neighbours_ratings = neighbours_ratings[~neighbours_ratings.movie_id.isin(user_ratings.movie_id)]
+        neighbours_ratings = neighbours_ratings[neighbours_ratings["movie_id"].map(neighbours_ratings["movie_id"].value_counts()) >= minimum_ratings]
+        neighbours_ratings = neighbours_ratings.groupby("movie_id").rating.mean().reset_index()
+        predicted_ratings = neighbours_ratings.sort_values("rating", ascending=False)
+    if TIME_FUNCS: print(f"Time to get top movies: {time.time() - s:.3f}")
+    return pd.merge(predicted_ratings, movies, on="movie_id")
 
 
 def get_user_item_table(user_id: int, df_ratings: pd.DataFrame) -> pd.DataFrame:
@@ -132,9 +147,7 @@ def get_best_users(user_item_table: pd.DataFrame, min_corr: float = 0.25) -> pd.
 
 
 def rate_movies_by_best_users(best_users: pd.DataFrame, user_movies: pd.DataFrame) -> pd.DataFrame:
-    return pd.DataFrame(best_users.apply(np.average, axis=0), columns=["avg_rating"]).sort_values("avg_rating",
-                                                                                                  ascending=False).drop(
-        user_movies["movie_id"])
+    return pd.DataFrame(best_users.apply(np.average, axis=0), columns=["avg_rating"]).sort_values("avg_rating", ascending=False).drop(user_movies["movie_id"])
 
 
 if __name__ == "__main__":
@@ -147,9 +160,6 @@ if __name__ == "__main__":
         if check_user_id(user_id, database.users):
             break
 
-    nearest_neighbours = 50
-
-    show_movies(database.get_user_movies(user_id).sort_values("rating", ascending=False, ignore_index=True),
-                n_movies=15)
-    neighbours = find_k_nearest(user_id, database.users, database.ratings, nearest_neighbours)
-    get_top_movies(user_id, neighbours, database.ratings, database.movies)
+    show_movies(database.get_user_movies(user_id).sort_values("rating", ascending=False, ignore_index=True), n_movies=15)
+    neighbours, database.similarities[user_id] = find_k_nearest(user_id, database.users, database.ratings, NEIGHBOURHOOD_SIZE, MINIMUM_COMMON_RATINGS)
+    get_top_movies(user_id, neighbours, database.ratings, database.movies, database.similarities[user_id])
