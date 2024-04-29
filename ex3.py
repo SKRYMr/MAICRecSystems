@@ -1,5 +1,7 @@
 import numpy as np
+import os
 import pandas as pd
+import pickle
 import sys
 import time
 from typing import Tuple, Literal
@@ -11,6 +13,7 @@ MINIMUM_COMMON_RATINGS = 5
 RATINGS_DAT_FILE = "./data/ratings.dat"
 MOVIES_DAT_FILE = "./data/movies.dat"
 USERS_DAT_FILE = "./data/users.dat"
+DB_PICKLE_PATH = "./data/database.pickle"
 
 class MovieLens():
     def __init__(self):
@@ -53,7 +56,7 @@ def show_movies(movies: pd.DataFrame, n_movies: int = 15, recommendation: bool =
     else:
         print(f"\n{n_movies if len(movies) > n_movies else len(movies)} Movies Rated By User =========================")
     for i, row in movies.iterrows():
-        genres = row["genres"].replace("|", ", ")
+        genres = row["genres"].replace("|", ", ") if type(row["genres"]) != list else row["genres"]
         print(f"{i + 1}) {row['title']} - {genres} - {row['rating']:.3f}")
         n_movies -= 1
         if n_movies == 0:
@@ -151,7 +154,13 @@ def rate_movies_by_best_users(best_users: pd.DataFrame, user_movies: pd.DataFram
 
 
 if __name__ == "__main__":
-    database = MovieLens()
+    if os.path.isfile(DB_PICKLE_PATH):
+        with open(DB_PICKLE_PATH, "rb") as f:
+            database = pickle.load(f)
+    else:
+        database = MovieLens()
+        with open(DB_PICKLE_PATH, "wb") as f:
+            pickle.dump(database, f)
     while True:
         try:
             user_id = int(input("User id: "))
@@ -161,5 +170,5 @@ if __name__ == "__main__":
             break
 
     show_movies(database.get_user_movies(user_id).sort_values("rating", ascending=False, ignore_index=True), n_movies=15)
-    neighbours, database.similarities[user_id] = find_k_nearest(user_id, database.users, database.ratings, NEIGHBOURHOOD_SIZE, MINIMUM_COMMON_RATINGS)
-    get_top_movies(user_id, neighbours, database.ratings, database.movies, database.similarities[user_id])
+    neighbours, similarities = find_k_nearest(user_id, database.users, database.ratings, NEIGHBOURHOOD_SIZE, MINIMUM_COMMON_RATINGS)
+    get_top_movies(user_id, neighbours, database.ratings, database.movies, similarities)
